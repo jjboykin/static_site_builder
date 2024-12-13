@@ -26,5 +26,5 @@ class HTMLNode():
         obj_out += f"'value': {self.value}\n"
         obj_out += f"'children': {self.children}\n"
         obj_out += f"'props': {self.props}\n"
-        obj_out += "}}"
+        obj_out += "}"
         return obj_out

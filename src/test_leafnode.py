@@ -26,7 +26,7 @@ class TestLeafNode(unittest.TestCase):
         test_props = {"href": "https://www.google.com", "target": "_blank" }
         node = LeafNode("a", "this is an anchor", props=test_props)
         html = node.to_html()
-        print(html)
+        #print(html)
         self.assertTrue(html=="<a href='https://www.google.com' target='_blank'>this is an anchor</a>")
 
 if __name__ == "__main__":

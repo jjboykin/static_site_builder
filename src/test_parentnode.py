@@ -23,7 +23,7 @@ class TestParentNode(unittest.TestCase):
         body_props = {"color" : "red"}
         parent_node = ParentNode("body", child_list, body_props)
         html = parent_node.to_html()
-        print(html)
+        #print(html)
         self.assertTrue(html=="<body color='red'><a href='https://www.google.com' target='_blank'>this is an anchor</a><p>this is a paragraph</p></body>")
 
 if __name__ == "__main__":
