@@ -14,21 +14,19 @@ class HTMLBlock:
     block_type_ulist = "unordered_list"
 
 def text_node_to_html_node(text_node):
-    match (text_node.text_type):
-        case TextType.TEXT:
-            return LeafNode(tag=None, value=text_node.text)
-        case TextType.BOLD:
-            return LeafNode(tag="b", value=text_node.text)
-        case TextType.ITALIC:
-            return LeafNode(tag="i", value=text_node.text)
-        case TextType.CODE:
-            return LeafNode(tag="code", value=text_node.text)
-        case TextType.LINKS:
-            return LeafNode(tag="a", value=text_node.text, props={"href" : text_node.url})
-        case TextType.IMAGES:
-            return LeafNode(tag="img", value=None, props={"src" : text_node.url, "alt" : text_node.text})
-        case _:
-            raise Exception("Invalid text type")
+    if text_node.text_type == TextType.TEXT:
+        return LeafNode(None, text_node.text)
+    if text_node.text_type == TextType.BOLD:
+        return LeafNode("b", text_node.text)
+    if text_node.text_type == TextType.ITALIC:
+        return LeafNode("i", text_node.text)
+    if text_node.text_type == TextType.CODE:
+        return LeafNode("code", text_node.text)
+    if text_node.text_type == TextType.LINK:
+        return LeafNode("a", text_node.text, {"href": text_node.url})
+    if text_node.text_type == TextType.IMAGE:
+        return LeafNode("img", "", {"src": text_node.url, "alt": text_node.text})
+    raise ValueError(f"Invalid text type: {text_node.text_type}")
 
 def split_nodes_delimiter(old_nodes, delimiter, text_type):
     new_nodes = []
@@ -108,11 +106,10 @@ def split_nodes_link(old_nodes):
     return nodes
 
 def text_to_textnodes(text):
-    original_text_node = TextNode(text, TextType.TEXT)
-    nodes = [original_text_node]
-    nodes = split_nodes_delimiter(nodes, "`", TextType.CODE)
-    nodes = split_nodes_delimiter(nodes, "*", TextType.ITALIC)
+    nodes = [TextNode(text, TextType.TEXT)]
     nodes = split_nodes_delimiter(nodes, "**", TextType.BOLD)
+    nodes = split_nodes_delimiter(nodes, "*", TextType.ITALIC)
+    nodes = split_nodes_delimiter(nodes, "`", TextType.CODE)
     nodes = split_nodes_image(nodes)
     nodes = split_nodes_link(nodes)
     return nodes
@@ -173,11 +170,13 @@ def markdown_to_html_node(markdown):
         match block_type:
             case HTMLBlock.block_type_paragraph:
                 child_nodes = text_to_children(block)
-                has_children = len(child_nodes) > 1
-                if has_children:
+                if len(child_nodes) > 1:
                     node = ParentNode("p", children=child_nodes)
                 else:
-                    node = LeafNode("p", value=block)
+                    if child_nodes[0].tag == "a" or child_nodes[0].tag == "img":
+                        node = child_nodes[0]
+                    else:
+                        node = LeafNode("p", value=block)
             case HTMLBlock.block_type_heading:
                 if block.startswith("# "):
                     heading_tag = "h1"
@@ -192,11 +191,16 @@ def markdown_to_html_node(markdown):
                 elif block.startswith("###### "):
                     heading_tag = "h6"
                 block = strip_markdown(block, HTMLBlock.block_type_heading)
-                node = LeafNode(heading_tag, value=block)
+                child_nodes = text_to_children(block)
+                if len(child_nodes) > 1:
+                    node = ParentNode(heading_tag, children=child_nodes)
+                else:
+                    node = LeafNode(heading_tag, value=block)
             case HTMLBlock.block_type_code:
                 block = strip_markdown(block, HTMLBlock.block_type_code)
-                node = LeafNode("code", value=block)
-                node = ParentNode("pre", children=node)
+                child_nodes = []
+                child_nodes.append(LeafNode("code", value=block))
+                node = ParentNode("pre", children=child_nodes)
             case HTMLBlock.block_type_quote:
                 block = strip_markdown(block, HTMLBlock.block_type_quote)
                 node = LeafNode("blockquote", value=block)
@@ -218,21 +222,21 @@ def markdown_to_html_node(markdown):
 
 def text_to_children(text):
     html_nodes = []
-
     text_nodes = text_to_textnodes(text)
     for text_node in text_nodes:
         html_nodes.append(text_node_to_html_node(text_node))
-
     return html_nodes
 
 def text_to_list_items(block):
     html_nodes = []
     lines = block.split("\n")
-
     for line in lines:
-        list_item = LeafNode("li", value=line)
+        line_nodes = text_to_children(line)
+        if len(line_nodes) > 1:
+            list_item = ParentNode("li", children=line_nodes)
+        else:
+            list_item = LeafNode("li", value=line)
         html_nodes.append(list_item)
-
     return html_nodes
 
 def strip_markdown(block, block_type):
@@ -253,7 +257,7 @@ def strip_markdown(block, block_type):
         case HTMLBlock.block_type_code:
             return block.replace("```", "")
         case HTMLBlock.block_type_quote:
-            return block.replace(">", "")
+            return block.replace("> ", "")
         case HTMLBlock.block_type_ulist:
             block = block.replace("* ", "")
             return block.replace("- ", "")
@@ -261,7 +265,14 @@ def strip_markdown(block, block_type):
             lines = block.split("\n")
             i = 1
             for line in lines:
-                line.replace(f"{i}. ", "")
+                lines[i-1] = line.replace(f"{i}. ", "")
                 i += 1
             block = "\n".join(lines)
             return block
+        
+def extract_title(markdown):
+    lines = markdown.split("\n")
+    for line in lines:
+        if line.startswith("# "):
+            return (line.replace("# ", "")).strip()
+    raise Exception("No title found")
